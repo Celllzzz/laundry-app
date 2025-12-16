@@ -16,6 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { WashStage } from "@prisma/client" // <--- 1. Import Enum WashStage
 
 // Definisi Tahapan & Style-nya
 const STAGES = [
@@ -50,7 +51,11 @@ export default function WashController({ booking }: { booking: any }) {
 
   const handleUpdate = async () => {
     setLoading(true)
-    await updateCustomerWashStage(booking.id, targetStage)
+    // 2. PERBAIKAN DI SINI:
+    // - Tambahkan parameter ke-3: booking.machineId
+    // - Casting targetStage ke WashStage agar sesuai tipe data
+    await updateCustomerWashStage(booking.id, targetStage as WashStage, booking.machineId)
+    
     setLoading(false)
     setOpenConfirm(false)
     toast.success("Status mesin berhasil diperbarui!")

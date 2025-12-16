@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { updateSelfServiceWash } from "@/app/actions/customer-booking"
+import { updateCustomerWashStage } from "@/app/actions/customer-booking"
 import { toast } from "sonner"
 import { 
   Play, Waves, Wind, CheckCircle2, Loader2, ArrowRight, 
@@ -50,7 +50,7 @@ export default function WashController({ booking }: { booking: any }) {
 
   const handleUpdate = async () => {
     setLoading(true)
-    await updateSelfServiceWash(booking.id, targetStage)
+    await updateCustomerWashStage(booking.id, targetStage)
     setLoading(false)
     setOpenConfirm(false)
     toast.success("Status mesin berhasil diperbarui!")

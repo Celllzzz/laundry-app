@@ -1,49 +1,95 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { WashStage } from "@prisma/client"
 
-// Fungsi User Update Status Sendiri
-export async function updateSelfServiceWash(bookingId: string, nextStage: string) {
+// 1. UPDATE WASH STAGE (Kontrol Mesin oleh Customer)
+export async function updateCustomerWashStage(bookingId: string, stage: WashStage, machineId: string) {
   const session = await auth()
-  if (!session) return { error: "Unauthorized" }
 
-  // 1. Cek kepemilikan booking (Security)
+  // FIX: Cek apakah session dan user ada
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" }
+  }
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId }
+  })
+
+  // FIX: Gunakan optional chaining (?.) untuk keamanan
+  if (!booking || booking.userId !== session.user.id) {
+    return { error: "Bukan pesanan Anda" }
+  }
+
+  // Update status
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { washStage: stage }
+  })
+
+  // Logika status mesin (sama seperti admin)
+  if (stage === "FINISHED") {
+    await prisma.machine.update({
+      where: { id: machineId },
+      data: { status: "AVAILABLE" }
+    })
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: "COMPLETED" }
+    })
+  } else {
+    await prisma.machine.update({
+      where: { id: machineId },
+      data: { status: "BUSY" }
+    })
+  }
+
+  revalidatePath("/dashboard")
+  revalidatePath("/riwayat")
+  return { success: true }
+}
+
+// 2. CANCEL BOOKING (Oleh Customer)
+export async function cancelMyBooking(bookingId: string) {
+  const session = await auth()
+
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" }
+  }
+
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { machine: true }
+    include: { machine: true } // Include machine untuk ambil ID-nya
   })
 
   if (!booking || booking.userId !== session.user.id) {
     return { error: "Bukan pesanan Anda" }
   }
 
-  try {
-    // 2. Jika User klik 'FINISHED', bebaskan mesin
-    if (nextStage === "FINISHED") {
-      await prisma.$transaction([
-        prisma.booking.update({
-          where: { id: bookingId },
-          data: { washStage: "FINISHED", status: "COMPLETED" }
-        }),
-        prisma.machine.update({
-          where: { id: booking.machineId },
-          data: { status: "AVAILABLE" } // Mesin jadi hijau lagi
-        })
-      ])
-    } else {
-      // 3. Update tahap biasa (Cuci -> Bilas -> Kering)
-      await prisma.booking.update({
-        where: { id: bookingId },
-        data: { washStage: nextStage }
-      })
-    }
-
-    revalidatePath("/dashboard")
-    return { success: "Status diperbarui" }
-
-  } catch (e) {
-    return { error: "Gagal update status" }
+  if (booking.status !== "PENDING" && booking.status !== "PAID") {
+    return { error: "Tidak dapat membatalkan pesanan yang sedang berjalan" }
   }
+
+  // Update Booking
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { 
+      status: "CANCELLED",
+      washStage: "FINISHED"
+    }
+  })
+
+  // Kembalikan Mesin jadi Available
+  if (booking.machineId) {
+    await prisma.machine.update({
+      where: { id: booking.machineId },
+      data: { status: "AVAILABLE" }
+    })
+  }
+
+  revalidatePath("/dashboard")
+  revalidatePath("/riwayat")
+  return { success: true }
 }

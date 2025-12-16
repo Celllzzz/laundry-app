@@ -2,64 +2,71 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { BookingStatus, WashStage } from "@prisma/client" // <--- PENTING: Import Enum ini
 
-// 1. Verifikasi Pembayaran / Ubah Status Booking
-export async function updateBookingStatus(bookingId: string, status: string) {
+// 1. UPDATE STATUS BOOKING
+// Ubah tipe parameter 'status' menjadi 'BookingStatus' (bukan string)
+export async function updateBookingStatus(bookingId: string, status: BookingStatus) {
   await prisma.booking.update({
     where: { id: bookingId },
     data: { status }
   })
+  
   revalidatePath("/admin/bookings")
   revalidatePath("/dashboard")
+  revalidatePath("/riwayat")
 }
 
-// 2. Update Progress Cucian (Cuci -> Bilas -> Kering -> Selesai)
-export async function updateWashStage(bookingId: string, stage: string, machineId: string) {
+// 2. UPDATE WASH STAGE (TAHAP PENCUCIAN)
+// Ubah tipe parameter 'stage' menjadi 'WashStage' (bukan string)
+export async function updateWashStage(bookingId: string, stage: WashStage, machineId: string) {
   
-  // Gunakan transaksi agar data aman
-  await prisma.$transaction(async (tx) => {
-    // A. Update Stage Cucian
-    await tx.booking.update({
-      where: { id: bookingId },
-      data: { washStage: stage }
-    })
-
-    // B. Logika Khusus: Jika stage == "FINISHED", mesin jadi AVAILABLE lagi
-    if (stage === "FINISHED") {
-      await tx.machine.update({
-        where: { id: machineId },
-        data: { status: "AVAILABLE" }
-      })
-      
-      // Opsional: Tandai booking selesai juga
-      await tx.booking.update({
-        where: { id: bookingId },
-        data: { status: "COMPLETED" }
-      })
-    }
+  // Update status cucian
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { washStage: stage }
   })
 
-  revalidatePath("/admin/bookings")
-  revalidatePath("/admin/dashboard")
-  revalidatePath("/dashboard")
-}
-
-// 3. Batalkan Pesanan (Cancel)
-export async function cancelBooking(bookingId: string, machineId: string) {
-  await prisma.$transaction([
-    // Set Booking jadi CANCELLED
-    prisma.booking.update({
-      where: { id: bookingId },
-      data: { status: "CANCELLED" }
-    }),
-    // Bebaskan Mesin jadi AVAILABLE
-    prisma.machine.update({
+  // Jika tahap selesai (FINISHED), set status mesin jadi AVAILABLE dan booking jadi COMPLETED
+  if (stage === "FINISHED") {
+    await prisma.machine.update({
       where: { id: machineId },
       data: { status: "AVAILABLE" }
     })
-  ])
+
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: "COMPLETED" }
+    })
+  } else {
+    // Jika masih mencuci/bilas/kering, pastikan mesin statusnya BUSY
+    await prisma.machine.update({
+      where: { id: machineId },
+      data: { status: "BUSY" }
+    })
+  }
 
   revalidatePath("/admin/bookings")
-  revalidatePath("/admin/dashboard")
+  revalidatePath("/dashboard")
+  revalidatePath("/riwayat")
+}
+
+// 3. CANCEL BOOKING
+export async function cancelBooking(bookingId: string, machineId: string) {
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { 
+      status: "CANCELLED",
+      washStage: "FINISHED" // Reset stage agar tidak menggantung
+    }
+  })
+
+  // Kembalikan mesin jadi available
+  await prisma.machine.update({
+    where: { id: machineId },
+    data: { status: "AVAILABLE" }
+  })
+
+  revalidatePath("/admin/bookings")
   revalidatePath("/dashboard")
 }

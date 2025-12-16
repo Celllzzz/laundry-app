@@ -1,20 +1,24 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation" // Untuk cek halaman aktif
-import { signOut } from "next-auth/react"
+import { usePathname } from "next/navigation"
+import { signOut, useSession } from "next-auth/react" // <--- 1. Import useSession
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, History, LogOut, WashingMachine, ListChecks } from "lucide-react"
+import { LayoutDashboard, History, LogOut, WashingMachine, ListChecks, User } from "lucide-react"
 
-export default function Navbar({ session }: { session: any }) {
+// 2. Hapus props { session } dari parameter fungsi
+export default function Navbar() {
   const pathname = usePathname()
+  
+  // 3. Ambil session langsung di sini (Real-time update!)
+  const { data: session } = useSession()
   const user = session?.user
 
+  // Logic: Sembunyikan Navbar di halaman login
   if (pathname === "/login") {
     return null
   }
 
-  // Helper untuk cek link aktif agar diberi warna beda
   const isActive = (path: string) => pathname === path ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:text-blue-600 hover:bg-gray-50"
 
   return (
@@ -60,18 +64,20 @@ export default function Navbar({ session }: { session: any }) {
 
         {/* Menu Kanan (Profile & Logout) */}
         <div className="flex items-center gap-4">
-          {session ? (
+          {user ? (
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block leading-tight">
                 <p className="font-semibold text-sm text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500 font-medium">{user.role === "ADMIN" ? "Administrator" : "Pelanggan"}</p>
+                <p className="text-xs text-gray-500 font-medium capitalize flex items-center justify-end gap-1">
+                  {user.role === "ADMIN" ? "Administrator" : "Pelanggan"}
+                </p>
               </div>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 className="text-red-500 hover:text-red-600 hover:bg-red-50"
                 onClick={() => signOut({ callbackUrl: "/" })}
-                title="Logout"
+                title="Keluar"
               >
                 <LogOut size={20} />
               </Button>

@@ -20,7 +20,7 @@ export default async function LandingPage() {
 
   const availableMachines = await prisma.machine.count({ where: { status: "AVAILABLE" } })
   const busyMachines = await prisma.machine.count({ where: { status: "BUSY" } })
-  const totalUsers = await prisma.user.count({ where: { role: Role.USER } })
+  const totalUsers = await prisma.user.count({ where: { role: Role.CUSTOMER } })
   const totalBookings = await prisma.booking.count()
 
   return (

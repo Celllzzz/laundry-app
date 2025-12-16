@@ -3,16 +3,19 @@
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { BookingStatus, WashStage, MachineStatus } from "@prisma/client" // <--- Import Enum
 
 export async function createBooking(formData: FormData) {
   const session = await auth()
-  if (!session || !session.user?.id) {
+  
+  // FIX: Safety Check dengan optional chaining
+  if (!session?.user?.id) {
     return { error: "Anda harus login terlebih dahulu" }
   }
 
   const machineId = formData.get("machineId") as string
   const duration = parseInt(formData.get("duration") as string)
-  const paymentMethod = formData.get("paymentMethod") as string // Tambahan: Tangkap metode bayar
+  const paymentMethod = formData.get("paymentMethod") as string
   
   const pricePerMinute = 1000
   const totalPrice = duration * pricePerMinute
@@ -22,7 +25,7 @@ export async function createBooking(formData: FormData) {
 
   try {
     await prisma.$transaction([
-      // 1. Buat Booking dengan status PAID dan metode pembayaran tercatat
+      // 1. Buat Booking
       prisma.booking.create({
         data: {
           userId: session.user.id,
@@ -30,16 +33,16 @@ export async function createBooking(formData: FormData) {
           startTime: startTime,
           endTime: endTime,
           totalPrice: totalPrice,
-          status: "PAID",         // Langsung Lunas
-          paymentMethod: paymentMethod, // Simpan metode bayar (QRIS/TRANSFER)
-          washStage: "QUEUED"     // Masuk antrian
+          status: BookingStatus.PAID,     // <--- FIX: Gunakan Enum
+          paymentMethod: paymentMethod,
+          washStage: WashStage.QUEUED     // <--- FIX: Gunakan Enum
         }
       }),
 
-      // 2. Update Status Mesin jadi BUSY
+      // 2. Update Status Mesin
       prisma.machine.update({
         where: { id: machineId },
-        data: { status: "BUSY" }
+        data: { status: MachineStatus.BUSY } // <--- FIX: Gunakan Enum
       })
     ])
 

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { WashingMachine, ArrowRight, Loader2, Mail, Lock } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner" // <--- 1. Import Toast
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -30,12 +31,17 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("Email atau password tidak valid.")
+        toast.error("Gagal login, periksa kembali data Anda.") // Optional: Feedback Error
       } else {
+        // 2. Tampilkan Feedback Sukses
+        toast.success("Login berhasil! Selamat datang kembali.")
+        
         router.refresh()
         router.push("/dashboard")
       }
     } catch (err) {
       setError("Terjadi kesalahan sistem")
+      toast.error("Terjadi kesalahan pada sistem.")
     } finally {
       setLoading(false)
     }
@@ -119,10 +125,19 @@ export default function LoginPage() {
                 </span>
               )}
             </Button>
+
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-500">
+                Belum punya akun?{" "}
+                <Link href="/register" className="text-blue-600 font-semibold hover:underline">
+                  Daftar di sini
+                </Link>
+              </p>
+            </div>
+
           </form>
         </div>
         
-        {/* Footer Card */}
         <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
           <p className="text-xs text-gray-400">
             &copy; 2024 WashPoint. All rights reserved.

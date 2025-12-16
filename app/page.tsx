@@ -201,7 +201,7 @@ export default async function LandingPage() {
                  Nikmati pengalaman mencuci yang efisien, transparan, dan modern sekarang juga.
                </p>
                <div className="pt-4">
-                 <Link href="/login">
+                 <Link href="/register">
                    <Button size="lg" className="bg-white text-blue-600 hover:bg-slate-100 font-bold h-12 px-8 rounded-full shadow-lg hover:shadow-xl transition-all hover:-translate-y-1">
                      Buat Akun Gratis
                    </Button>

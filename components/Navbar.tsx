@@ -1,33 +1,72 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { signOut, useSession } from "next-auth/react" // <--- 1. Import useSession
+import { usePathname, useRouter } from "next/navigation"
+import { signOut, useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, History, LogOut, WashingMachine, ListChecks, User } from "lucide-react"
+import { LayoutDashboard, History, LogOut, WashingMachine, ListChecks, Loader2 } from "lucide-react" // Tambah Loader2
+import { toast } from "sonner"
+import { useState } from "react" // Tambah useState
 
-// 2. Hapus props { session } dari parameter fungsi
 export default function Navbar() {
   const pathname = usePathname()
-  
-  // 3. Ambil session langsung di sini (Real-time update!)
-  const { data: session } = useSession()
+  const router = useRouter()
+  const { data: session, status } = useSession() // Ambil status juga
   const user = session?.user
+  const [isLoggingOut, setIsLoggingOut] = useState(false) // State loading logout
 
-  // Logic: Sembunyikan Navbar di halaman login
-  if (pathname === "/login") {
+  // Sembunyikan Navbar di halaman login dan register
+  if (pathname === "/login" || pathname === "/register") {
     return null
+  }
+
+  // LOGIC PENTING: Cek apakah ini halaman yang harusnya hanya untuk User Login
+  const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname === "/riwayat"
+
+  // FIX GLITCH: Jika user sudah null (logout) TAPI masih di halaman protected,
+  // Tampilkan skeleton/loading saja biar navbar tidak berubah jadi tombol "Masuk"
+  // Ini mencegah layout shift atau tampilan aneh sebelum redirect selesai.
+  if (isProtectedRoute && !user) {
+    return (
+      <nav className="w-full border-b bg-white z-50">
+        <div className="container mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+           {/* Tampilkan Logo Saja atau Kosong */}
+           <div className="flex items-center gap-2 text-xl font-bold text-gray-300">
+              <div className="bg-gray-200 text-white p-1 rounded-lg">
+                <WashingMachine size={24} />
+              </div>
+              WashPoint
+           </div>
+           {/* Spinner kecil penanda sedang redirect */}
+           <Loader2 className="animate-spin text-gray-300" />
+        </div>
+      </nav>
+    )
+  }
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true) 
+    
+    // 1. Hapus sesi di server
+    await signOut({ redirect: false })
+    
+    // 2. Tampilkan Notifikasi
+    toast.success("Berhasil logout. Sampai jumpa lagi!")
+    
+    // 3. SOLUSI: Gunakan window.location.href (Hard Reload)
+    // Ini memaksa browser membuang semua cache sesi lama
+    window.location.href = "/"
   }
 
   const isActive = (path: string) => pathname === path ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:text-blue-600 hover:bg-gray-50"
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <nav className="w-full border-b bg-white z-50">
       <div className="container mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
         
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700 tracking-tight">
-          <div className="bg-blue-600 text-white p-1 rounded-lg">
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700 tracking-tight group">
+          <div className="bg-blue-600 text-white p-1 rounded-lg group-hover:bg-blue-700 transition-colors">
             <WashingMachine size={24} />
           </div>
           WashPoint
@@ -62,7 +101,7 @@ export default function Navbar() {
           </div>
         )}
 
-        {/* Menu Kanan (Profile & Logout) */}
+        {/* Menu Kanan */}
         <div className="flex items-center gap-4">
           {user ? (
             <div className="flex items-center gap-4">
@@ -75,17 +114,27 @@ export default function Navbar() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                onClick={() => signOut({ callbackUrl: "/" })}
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                onClick={handleLogout}
+                disabled={isLoggingOut} // Disable saat proses logout
                 title="Keluar"
               >
-                <LogOut size={20} />
+                {isLoggingOut ? <Loader2 className="animate-spin" size={20} /> : <LogOut size={20} />}
               </Button>
             </div>
           ) : (
-            <Link href="/login">
-              <Button>Login</Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/login">
+                <Button variant="ghost" className="text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all">
+                  Masuk
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg hover:shadow-blue-200 transition-all hover:-translate-y-0.5 active:scale-95">
+                  Daftar Sekarang
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </div>

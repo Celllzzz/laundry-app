@@ -49,7 +49,7 @@ export default async function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              {session ? (
+              {session?.user ? (
                 <Link href={session.user.role === 'ADMIN' ? "/admin/dashboard" : "/dashboard"}>
                   <Button size="lg" className="h-12 px-8 text-base bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-blue-200 transition-all rounded-full hover:scale-105 active:scale-95 duration-200">
                     Buka Dashboard <ArrowRight className="ml-2 w-4 h-4" />

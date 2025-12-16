@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google"; // Ganti localFont jadi Google Font
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
+import { auth } from "@/auth";
+import { Toaster } from "@/components/ui/sonner";
 
-// Kita pakai font Inter (standar, bersih, mirip GitHub/Vercel)
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Laundry App",
-  description: "Aplikasi Manajemen Laundry",
+  title: "WashPoint Laundry",
+  description: "Sistem Manajemen Laundry Modern",
 };
 
 export default async function RootLayout({
@@ -20,15 +20,12 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="en">
-      <body className={`${inter.className} antialiased bg-gray-50`}>
-        
+    // TAMBAHKAN 'scroll-smooth' DI SINI
+    <html lang="en" className="scroll-smooth">
+      <body className={inter.className}>
         <Navbar session={session} />
-        
-        <main className="container mx-auto py-6">
-          {children}
-        </main>
-        
+        {children}
+        <Toaster />
       </body>
     </html>
   );

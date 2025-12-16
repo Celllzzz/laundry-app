@@ -1,34 +1,81 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation" // Untuk cek halaman aktif
 import { signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
+import { LayoutDashboard, History, LogOut, WashingMachine, ListChecks } from "lucide-react"
 
 export default function Navbar({ session }: { session: any }) {
+  const pathname = usePathname()
+  const user = session?.user
+
+  if (pathname === "/login") {
+    return null
+  }
+
+  // Helper untuk cek link aktif agar diberi warna beda
+  const isActive = (path: string) => pathname === path ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:text-blue-600 hover:bg-gray-50"
+
   return (
-    <nav className="border-b bg-white shadow-sm">
-      <div className="flex h-16 items-center justify-between px-4 md:px-10 container mx-auto">
-        {/* Logo / Brand */}
-        <Link href="/" className="text-xl font-bold text-primary">
-          WashPoint 🧺
+    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="container mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+        
+        {/* Brand Logo */}
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700 tracking-tight">
+          <div className="bg-blue-600 text-white p-1 rounded-lg">
+            <WashingMachine size={24} />
+          </div>
+          WashPoint
         </Link>
 
-        {/* Menu Kanan */}
+        {/* Menu Tengah (Desktop Only) */}
+        {user && (
+          <div className="hidden md:flex items-center gap-1">
+            {user.role === "ADMIN" ? (
+              <>
+                <Link href="/admin/dashboard" className={`px-4 py-2 rounded-md text-sm transition-all flex items-center gap-2 ${isActive('/admin/dashboard')}`}>
+                  <LayoutDashboard size={18} />
+                  Mesin
+                </Link>
+                <Link href="/admin/bookings" className={`px-4 py-2 rounded-md text-sm transition-all flex items-center gap-2 ${isActive('/admin/bookings')}`}>
+                  <ListChecks size={18} />
+                  Pesanan
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/dashboard" className={`px-4 py-2 rounded-md text-sm transition-all flex items-center gap-2 ${isActive('/dashboard')}`}>
+                  <LayoutDashboard size={18} />
+                  Beranda
+                </Link>
+                <Link href="/riwayat" className={`px-4 py-2 rounded-md text-sm transition-all flex items-center gap-2 ${isActive('/riwayat')}`}>
+                  <History size={18} />
+                  Riwayat
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Menu Kanan (Profile & Logout) */}
         <div className="flex items-center gap-4">
           {session ? (
-            <>
-              <div className="text-sm text-right hidden md:block">
-                <p className="font-medium">{session.user.name}</p>
-                <p className="text-xs text-gray-500">{session.user.role}</p>
+            <div className="flex items-center gap-4">
+              <div className="text-right hidden sm:block leading-tight">
+                <p className="font-semibold text-sm text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500 font-medium">{user.role === "ADMIN" ? "Administrator" : "Pelanggan"}</p>
               </div>
               <Button 
-                variant="destructive" 
-                size="sm" 
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                variant="ghost" 
+                size="icon" 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                onClick={() => signOut({ callbackUrl: "/" })}
+                title="Logout"
               >
-                Logout
+                <LogOut size={20} />
               </Button>
-            </>
+            </div>
           ) : (
             <Link href="/login">
               <Button>Login</Button>

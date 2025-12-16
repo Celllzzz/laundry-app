@@ -28,6 +28,11 @@ export default auth((req) => {
     return NextResponse.redirect(new URL('/dashboard', req.nextUrl))
   }
 
+  // 4. [BARU] Jika ADMIN masuk ke Dashboard User, pindahkan ke Dashboard Admin
+  if (isOnDashboard && user?.role === "ADMIN") {
+    return NextResponse.redirect(new URL('/admin/dashboard', req.nextUrl))
+  }
+
   return NextResponse.next()
 })
 

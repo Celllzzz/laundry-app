@@ -54,7 +54,7 @@ export default async function HistoryPage() {
                   <TableRow className="hover:bg-gray-50/80">
                     <TableHead className="pl-6 w-[250px] text-xs font-bold text-gray-500 uppercase tracking-wider">Waktu & Tanggal</TableHead>
                     <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-wider">Detail Mesin</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status Pembayaran</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status</TableHead>
                     <TableHead className="text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total Biaya</TableHead>
                     <TableHead className="text-center w-[100px] pr-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</TableHead>
                   </TableRow>

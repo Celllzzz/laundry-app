@@ -6,7 +6,7 @@ import { updateCustomerWashStage } from "@/app/actions/customer-booking"
 import { toast } from "sonner"
 import { 
   Play, Waves, Wind, CheckCircle2, Loader2, ArrowRight, 
-  Droplets, Timer, PartyPopper, AlarmClock 
+  Timer, PartyPopper, AlarmClock 
 } from "lucide-react"
 import {
   Dialog,
@@ -18,36 +18,48 @@ import {
 } from "@/components/ui/dialog"
 import { WashStage } from "@prisma/client"
 
-// Definisi Tahapan & Style-nya
-const STAGES = [
-  { id: "QUEUED", label: "Antrian", icon: Timer, color: "bg-slate-500", ring: "ring-slate-200" },
-  { id: "WASHING", label: "Pencucian", icon: Waves, color: "bg-blue-500", ring: "ring-blue-200" },
-  { id: "RINSING", label: "Pembilasan", icon: Droplets, color: "bg-cyan-500", ring: "ring-cyan-200" },
-  { id: "DRYING", label: "Pengeringan", icon: Wind, color: "bg-orange-500", ring: "ring-orange-200" },
-  { id: "FINISHED", label: "Selesai", icon: CheckCircle2, color: "bg-green-500", ring: "ring-green-200" },
-]
+// Definisi Tahapan (Master Data)
+// Kita ubah jadi Object agar mudah dipanggil berdasarkan key
+const ALL_STAGES_CONFIG = {
+  QUEUED:   { label: "Antrian", icon: Timer, color: "bg-slate-500", ring: "ring-slate-200" },
+  WASHING:  { label: "Pencucian", icon: Waves, color: "bg-blue-500", ring: "ring-blue-200" },
+  // RINSING:  { label: "Pembilasan", icon: Droplets, color: "bg-cyan-500", ring: "ring-cyan-200" }, // Opsional jika ingin dipakai nanti
+  DRYING:   { label: "Pengeringan", icon: Wind, color: "bg-orange-500", ring: "ring-orange-200" },
+  FINISHED: { label: "Selesai", icon: CheckCircle2, color: "bg-green-500", ring: "ring-green-200" },
+}
 
 export default function WashController({ booking }: { booking: any }) {
   const [loading, setLoading] = useState(false)
   const [openConfirm, setOpenConfirm] = useState(false)
   const [targetStage, setTargetStage] = useState("")
-  const [timeLeft, setTimeLeft] = useState(0) // State untuk Timer (detik)
+  const [timeLeft, setTimeLeft] = useState(0)
+
+  // 1. DETEKSI TIPE MESIN
+  // Cek apakah type mesin mengandung kata 'dry' atau 'pengering'
+  const machineType = booking.machine?.type || ""
+  const isDryer = machineType.toLowerCase().includes("dry") || machineType.toLowerCase().includes("pengering")
+
+  // 2. TENTUKAN ALUR (FLOW) BERDASARKAN TIPE
+  // Dryer: Antrian -> Pengeringan -> Selesai
+  // Washer: Antrian -> Pencucian -> Selesai
+  const flowStages = isDryer 
+    ? ["QUEUED", "DRYING", "FINISHED"]
+    : ["QUEUED", "WASHING", "FINISHED"]
 
   const currentStage = booking.washStage
-  const currentStageIdx = STAGES.findIndex(s => s.id === currentStage)
-  const activeStepConfig = STAGES[currentStageIdx] || STAGES[0]
+  // Cari index berdasarkan flow yang aktif (bukan index global)
+  const currentStageIdx = flowStages.indexOf(currentStage)
+  
+  // Ambil config tampilan untuk stage saat ini
+  // @ts-ignore
+  const activeStepConfig = ALL_STAGES_CONFIG[currentStage] || ALL_STAGES_CONFIG.QUEUED
 
   // --- LOGIC TIMER ---
-  
-  // 1. Hitung durasi awal (Total menit didapat dari Price / 1000)
-  // Asumsi: Price 1000/menit. Jadi TotalPrice 5000 = 5 menit.
   const totalDurationMinutes = booking.totalPrice / 1000 
   const totalDurationSeconds = totalDurationMinutes * 60
 
-  // 2. Fungsi Update ke Server (dibalut useCallback agar bisa dipanggil di useEffect)
   const handleUpdate = useCallback(async (stage: string) => {
     setLoading(true)
-    // Panggil Server Action
     const res = await updateCustomerWashStage(booking.id, stage as WashStage, booking.machineId)
     
     if (res?.error) {
@@ -60,32 +72,25 @@ export default function WashController({ booking }: { booking: any }) {
     setOpenConfirm(false)
   }, [booking.id, booking.machineId])
 
-  // 3. Efek Timer & Auto Finish
   useEffect(() => {
-    // Jika selesai, stop timer
     if (currentStage === "FINISHED" || currentStage === "CANCELLED") {
       setTimeLeft(0)
       return
     }
 
-    // Jika masih antri, tampilkan durasi penuh (belum jalan)
     if (currentStage === "QUEUED") {
       setTimeLeft(totalDurationSeconds)
       return
     }
 
-    // Jika sedang berjalan (WASHING / RINSING / DRYING)
     const interval = setInterval(() => {
       const now = new Date()
       const endTime = new Date(booking.endTime)
       const diffInSeconds = Math.floor((endTime.getTime() - now.getTime()) / 1000)
 
       if (diffInSeconds <= 0) {
-        // WAKTU HABIS -> OTOMATIS SELESAI
         setTimeLeft(0)
         clearInterval(interval)
-        
-        // Cek agar tidak spam request jika sudah finished
         if (currentStage !== "FINISHED") {
            handleUpdate("FINISHED")
            toast.info("Waktu habis! Mesin otomatis berhenti.")
@@ -98,22 +103,26 @@ export default function WashController({ booking }: { booking: any }) {
     return () => clearInterval(interval)
   }, [currentStage, booking.endTime, totalDurationSeconds, handleUpdate])
 
-  // Helper: Format Detik ke MM:SS
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
     const s = seconds % 60
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
   }
 
-  // --- LOGIC TOMBOL ---
+  // --- LOGIC TOMBOL NEXT STEP (DINAMIS) ---
   const getNextAction = () => {
-    switch (currentStage) {
-      case "QUEUED": return { label: "Mulai Mencuci", stage: "WASHING", desc: "Timer akan dimulai. Pastikan pakaian sudah masuk." }
-      case "WASHING": return { label: "Mulai Bilas", stage: "RINSING", desc: "Sabun akan dibilas bersih dari pakaian." }
-      case "RINSING": return { label: "Mulai Pengeringan", stage: "DRYING", desc: "Pastikan tidak ada bahan yang mudah meleleh." }
-      case "DRYING": return { label: "Selesai & Ambil", stage: "FINISHED", desc: "Jangan lupa cek barang tertinggal di mesin." }
-      default: return null
+    // 1. LOGIC DRYER
+    if (isDryer) {
+      if (currentStage === "QUEUED") return { label: "Mulai Pengeringan", stage: "DRYING", desc: "Mesin pengering akan mulai memanas." }
+      if (currentStage === "DRYING") return { label: "Selesai & Ambil", stage: "FINISHED", desc: "Pastikan pakaian sudah kering." }
+    } 
+    // 2. LOGIC WASHER
+    else {
+      if (currentStage === "QUEUED") return { label: "Mulai Mencuci", stage: "WASHING", desc: "Mesin cuci akan mulai bekerja." }
+      if (currentStage === "WASHING") return { label: "Selesai & Ambil", stage: "FINISHED", desc: "Pastikan pakaian sudah bersih." }
     }
+
+    return null
   }
 
   const nextAction = getNextAction()
@@ -126,29 +135,31 @@ export default function WashController({ booking }: { booking: any }) {
   return (
     <div className="w-full space-y-6">
       
-      {/* 1. VISUAL TIMELINE */}
+      {/* 1. VISUAL TIMELINE (Looping berdasarkan flowStages) */}
       <div className="relative flex justify-between items-center px-2">
         <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 rounded-full" />
         <div 
           className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-600 -z-10 rounded-full transition-all duration-700 ease-out" 
-          style={{ width: `${(currentStageIdx / (STAGES.length - 1)) * 100}%` }} 
+          style={{ width: `${(currentStageIdx / (flowStages.length - 1)) * 100}%` }} 
         />
 
-        {STAGES.map((step, idx) => {
+        {flowStages.map((stepKey, idx) => {
+          // @ts-ignore
+          const config = ALL_STAGES_CONFIG[stepKey]
           const isActive = idx <= currentStageIdx
           const isCurrent = idx === currentStageIdx
-          const Icon = step.icon
+          const Icon = config.icon
 
           return (
-            <div key={step.id} className="flex flex-col items-center gap-2 relative group">
+            <div key={stepKey} className="flex flex-col items-center gap-2 relative group">
               <div 
                 className={`
                   w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 z-10 border-2
                   ${isActive 
-                    ? `${step.color} border-transparent text-white shadow-md scale-110` 
+                    ? `${config.color} border-transparent text-white shadow-md scale-110` 
                     : 'bg-white border-slate-200 text-slate-300'
                   }
-                  ${isCurrent ? `ring-4 ${step.ring}` : ''}
+                  ${isCurrent ? `ring-4 ${config.ring}` : ''}
                 `}
               >
                 <Icon size={14} className={isCurrent ? "animate-pulse" : ""} />
@@ -157,7 +168,7 @@ export default function WashController({ booking }: { booking: any }) {
                 absolute -bottom-6 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-colors duration-300
                 ${isCurrent ? 'text-slate-800 opacity-100 translate-y-0' : 'text-slate-400 opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'}
               `}>
-                {step.label}
+                {config.label}
               </span>
             </div>
           )
@@ -166,7 +177,6 @@ export default function WashController({ booking }: { booking: any }) {
 
       {/* 2. STATUS CARD & TIMER */}
       <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex items-center justify-between relative overflow-hidden">
-        {/* Background Decoration */}
         <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full opacity-10 blur-2xl ${activeStepConfig.color}`} />
         
         <div className="flex items-center gap-4">
@@ -182,8 +192,9 @@ export default function WashController({ booking }: { booking: any }) {
             <h3 className="text-lg font-bold text-slate-800">{activeStepConfig.label}</h3>
             <p className="text-xs text-slate-500">
                {currentStage === 'QUEUED' && "Menunggu instruksi..."}
-               {currentStage === 'WASHING' && "Mesin sedang bekerja..."}
-               {currentStage === 'FINISHED' && "Proses laundry selesai."}
+               {currentStage === 'WASHING' && "Sedang mencuci..."}
+               {currentStage === 'DRYING' && "Sedang mengeringkan..."}
+               {currentStage === 'FINISHED' && "Proses selesai."}
             </p>
           </div>
         </div>
@@ -227,8 +238,8 @@ export default function WashController({ booking }: { booking: any }) {
       ) : (
         <div className="bg-green-50 border border-green-100 p-4 rounded-xl text-center animate-in zoom-in duration-500">
             <PartyPopper className="w-8 h-8 text-green-500 mx-auto mb-2" />
-            <p className="text-green-700 font-bold">Cucian Selesai!</p>
-            <p className="text-xs text-green-600">Terima kasih telah menggunakan layanan kami.</p>
+            <p className="text-green-700 font-bold">Proses Selesai!</p>
+            <p className="text-xs text-green-600">Jangan lupa ambil barang Anda.</p>
         </div>
       )}
 
@@ -252,7 +263,6 @@ export default function WashController({ booking }: { booking: any }) {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setOpenConfirm(false)}>Batalkan</Button>
-            {/* Perbaikan: Pass parameter stage ke handleUpdate */}
             <Button onClick={() => handleUpdate(targetStage)} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
               {loading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
               Ya, Lanjutkan
